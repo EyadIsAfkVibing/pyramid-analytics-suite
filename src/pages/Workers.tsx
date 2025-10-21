@@ -2,8 +2,13 @@ import { useEffect, useState } from 'react';
 import { db, WorkerRecord } from '@/lib/db';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { FileDown } from 'lucide-react';
+import { CSVUpload } from '@/components/upload/CSVUpload';
+import { exportToPDF, captureChartImage } from '@/lib/pdfExport';
+import { toast } from 'sonner';
 
 const Workers = () => {
   const [workers, setWorkers] = useState<WorkerRecord[]>([]);
@@ -51,11 +56,51 @@ const Workers = () => {
 
   const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
+  const handleImport = async (data: Omit<WorkerRecord, 'id'>[]) => {
+    await db.workers.bulkAdd(data);
+    loadData();
+  };
+
+  const handleExport = async () => {
+    const chartImages = await Promise.all([
+      captureChartImage('shift-chart').then(img => img ? { title: 'Tasks by Shift', dataUrl: img } : null),
+      captureChartImage('worker-chart').then(img => img ? { title: 'Top Workers', dataUrl: img } : null),
+    ]);
+
+    await exportToPDF({
+      title: 'Worker Performance Report',
+      dateRange: `Last ${workers.length} records`,
+      data: workers.slice(0, 20).map(w => ({
+        Date: w.date,
+        Worker: w.name,
+        Shift: w.shift,
+        'Tasks Completed': w.tasksDone,
+      })),
+      columns: [
+        { header: 'Date', key: 'Date', width: 30 },
+        { header: 'Worker', key: 'Worker', width: 50 },
+        { header: 'Shift', key: 'Shift', width: 30 },
+        { header: 'Tasks', key: 'Tasks Completed', width: 30 },
+      ],
+      chartImages: chartImages.filter(Boolean) as any[],
+    });
+    toast.success('Report exported to PDF');
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Worker Performance</h1>
-        <p className="text-muted-foreground">Track worker productivity and shift efficiency</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Worker Performance</h1>
+          <p className="text-muted-foreground">Track worker productivity and shift efficiency</p>
+        </div>
+        <div className="flex gap-2">
+          <CSVUpload dataType="workers" onDataImport={handleImport} />
+          <Button onClick={handleExport} variant="outline" size="sm">
+            <FileDown className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -99,8 +144,9 @@ const Workers = () => {
             <CardTitle>Average Tasks by Shift</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={byShift}>
+            <div id="shift-chart">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={byShift}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="shift" stroke="hsl(var(--muted-foreground))" />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
@@ -120,6 +166,7 @@ const Workers = () => {
                 />
               </BarChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
@@ -128,8 +175,9 @@ const Workers = () => {
             <CardTitle>Top 5 Workers by Tasks</CardTitle>
           </CardHeader>
           <CardContent className="flex justify-center">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
+            <div id="worker-chart">
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
                 <Pie
                   data={byWorker}
                   cx="50%"
@@ -146,6 +194,7 @@ const Workers = () => {
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>

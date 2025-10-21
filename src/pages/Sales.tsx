@@ -2,9 +2,14 @@ import { useEffect, useState } from 'react';
 import { db, SaleRecord } from '@/lib/db';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { FileDown } from 'lucide-react';
+import { CSVUpload } from '@/components/upload/CSVUpload';
+import { exportToPDF, captureChartImage } from '@/lib/pdfExport';
+import { toast } from 'sonner';
 
 const Sales = () => {
   const [sales, setSales] = useState<SaleRecord[]>([]);
@@ -54,11 +59,55 @@ const Sales = () => {
 
   const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
+  const handleImport = async (data: Omit<SaleRecord, 'id'>[]) => {
+    await db.sales.bulkAdd(data);
+    loadData();
+  };
+
+  const handleExport = async () => {
+    const chartImages = await Promise.all([
+      captureChartImage('revenue-chart').then(img => img ? { title: 'Revenue Trend', dataUrl: img } : null),
+      captureChartImage('customer-chart').then(img => img ? { title: 'Top Customers', dataUrl: img } : null),
+    ]);
+
+    await exportToPDF({
+      title: 'Sales Report',
+      dateRange: `Last ${sales.length} records`,
+      data: sales.slice(0, 15).map(s => ({
+        Date: s.date,
+        Customer: s.customer,
+        Product: s.productType,
+        Quantity: s.amount,
+        Revenue: `$${s.revenue.toLocaleString()}`,
+        Status: s.delivered ? 'Delivered' : 'Pending',
+      })),
+      columns: [
+        { header: 'Date', key: 'Date', width: 30 },
+        { header: 'Customer', key: 'Customer', width: 40 },
+        { header: 'Product', key: 'Product', width: 40 },
+        { header: 'Qty', key: 'Quantity', width: 20 },
+        { header: 'Revenue', key: 'Revenue', width: 30 },
+        { header: 'Status', key: 'Status', width: 25 },
+      ],
+      chartImages: chartImages.filter(Boolean) as any[],
+    });
+    toast.success('Report exported to PDF');
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Sales Analytics</h1>
-        <p className="text-muted-foreground">Track revenue, customers, and delivery performance</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Sales Analytics</h1>
+          <p className="text-muted-foreground">Track revenue, customers, and delivery performance</p>
+        </div>
+        <div className="flex gap-2">
+          <CSVUpload dataType="sales" onDataImport={handleImport} />
+          <Button onClick={handleExport} variant="outline" size="sm">
+            <FileDown className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -103,8 +152,9 @@ const Sales = () => {
             <CardTitle>Revenue Trend</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={dailyRevenue}>
+            <div id="revenue-chart">
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={dailyRevenue}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
@@ -125,6 +175,7 @@ const Sales = () => {
                 />
               </LineChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
@@ -133,8 +184,9 @@ const Sales = () => {
             <CardTitle>Top 5 Customers by Revenue</CardTitle>
           </CardHeader>
           <CardContent className="flex justify-center">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
+            <div id="customer-chart">
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
                 <Pie
                   data={byCustomer}
                   cx="50%"
@@ -153,6 +205,7 @@ const Sales = () => {
                 />
               </PieChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>

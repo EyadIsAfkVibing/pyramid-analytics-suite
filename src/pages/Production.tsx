@@ -2,8 +2,13 @@ import { useEffect, useState } from 'react';
 import { db, ProductionRecord } from '@/lib/db';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { FileDown } from 'lucide-react';
+import { CSVUpload } from '@/components/upload/CSVUpload';
+import { exportToPDF, captureChartImage } from '@/lib/pdfExport';
+import { toast } from 'sonner';
 
 const Production = () => {
   const [production, setProduction] = useState<ProductionRecord[]>([]);
@@ -57,11 +62,53 @@ const Production = () => {
   const totalActual = production.reduce((sum, p) => sum + p.quantity, 0);
   const efficiency = totalTarget > 0 ? ((totalActual / totalTarget) * 100).toFixed(1) : 0;
 
+  const handleImport = async (data: Omit<ProductionRecord, 'id'>[]) => {
+    await db.production.bulkAdd(data);
+    loadData();
+  };
+
+  const handleExport = async () => {
+    const chartImages = await Promise.all([
+      captureChartImage('production-chart').then(img => img ? { title: 'Production vs Target', dataUrl: img } : null),
+      captureChartImage('waste-chart').then(img => img ? { title: 'Waste Analysis', dataUrl: img } : null),
+    ]);
+
+    await exportToPDF({
+      title: 'Production Report',
+      dateRange: `Last ${production.length} records`,
+      data: production.slice(0, 10).map(p => ({
+        Date: p.date,
+        Product: p.productType,
+        Quantity: p.quantity,
+        Target: p.target,
+        'Waste (kg)': p.wasteKg,
+      })),
+      columns: [
+        { header: 'Date', key: 'Date', width: 30 },
+        { header: 'Product', key: 'Product', width: 50 },
+        { header: 'Quantity', key: 'Quantity', width: 25 },
+        { header: 'Target', key: 'Target', width: 25 },
+        { header: 'Waste (kg)', key: 'Waste (kg)', width: 30 },
+      ],
+      chartImages: chartImages.filter(Boolean) as any[],
+    });
+    toast.success('Report exported to PDF');
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Production Tracking</h1>
-        <p className="text-muted-foreground">Monitor daily production targets and actual output</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Production Tracking</h1>
+          <p className="text-muted-foreground">Monitor daily production targets and actual output</p>
+        </div>
+        <div className="flex gap-2">
+          <CSVUpload dataType="production" onDataImport={handleImport} />
+          <Button onClick={handleExport} variant="outline" size="sm">
+            <FileDown className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       {/* Efficiency Summary */}
@@ -89,8 +136,9 @@ const Production = () => {
             <CardTitle>Production vs Target (Last 14 Days)</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dailyData}>
+            <div id="production-chart">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={dailyData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
@@ -106,6 +154,7 @@ const Production = () => {
                 <Bar dataKey="quantity" fill="hsl(var(--chart-1))" name="Actual" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
@@ -141,8 +190,9 @@ const Production = () => {
             <CardTitle>Waste Analysis</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={dailyData}>
+            <div id="waste-chart">
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={dailyData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
@@ -163,6 +213,7 @@ const Production = () => {
                 />
               </LineChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>
