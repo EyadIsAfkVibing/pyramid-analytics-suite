@@ -121,7 +121,6 @@ const Sales = () => {
           <ImportHistory dataType="sales" onImportDeleted={loadData} />
         </CardContent>
       </Card>
-      </div>
 
       {/* Summary Cards */}
       <motion.div 
