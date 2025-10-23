@@ -4,9 +4,11 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileDown } from 'lucide-react';
-import { CSVUpload } from '@/components/upload/CSVUpload';
+import { FileUpload } from '@/components/upload/FileUpload';
+import { ImportHistory } from '@/components/data/ImportHistory';
+import { UserGuide } from '@/components/help/UserGuide';
+import { DataTable } from '@/components/data/DataTable';
 import { exportToPDF, captureChartImage } from '@/lib/pdfExport';
 import { toast } from 'sonner';
 
@@ -62,10 +64,13 @@ const Production = () => {
   const totalActual = production.reduce((sum, p) => sum + p.quantity, 0);
   const efficiency = totalTarget > 0 ? ((totalActual / totalTarget) * 100).toFixed(1) : 0;
 
-  const handleImport = async (data: Omit<ProductionRecord, 'id'>[]) => {
-    await db.production.bulkAdd(data);
-    loadData();
-  };
+  const productionColumns = [
+    { key: 'date', label: 'Date', format: (val: string) => val.slice(0, 10) },
+    { key: 'productType', label: 'Product Type' },
+    { key: 'quantity', label: 'Quantity' },
+    { key: 'target', label: 'Target' },
+    { key: 'wasteKg', label: 'Waste (kg)' },
+  ];
 
   const handleExport = async () => {
     const chartImages = await Promise.all([
@@ -103,13 +108,26 @@ const Production = () => {
           <p className="text-muted-foreground">Monitor daily production targets and actual output</p>
         </div>
         <div className="flex gap-2">
-          <CSVUpload dataType="production" onDataImport={handleImport} />
+          <UserGuide />
+          <FileUpload dataType="production" onDataImport={loadData} />
           <Button onClick={handleExport} variant="outline" size="sm">
             <FileDown className="h-4 w-4 mr-2" />
             Export PDF
           </Button>
         </div>
       </div>
+
+      {/* Import History */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <Card>
+          <CardContent className="pt-6">
+            <ImportHistory dataType="production" onImportDeleted={loadData} />
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Efficiency Summary */}
       <motion.div
@@ -218,38 +236,18 @@ const Production = () => {
         </Card>
       </div>
 
-      {/* Recent Production Table */}
+      {/* Data Management Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Production Records</CardTitle>
+          <CardTitle>Production Data Management</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Product Type</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Target</TableHead>
-                <TableHead>Waste (kg)</TableHead>
-                <TableHead>Efficiency</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {production.slice(0, 10).map((record) => (
-                <TableRow key={record.id}>
-                  <TableCell>{record.date}</TableCell>
-                  <TableCell>{record.productType}</TableCell>
-                  <TableCell>{record.quantity}</TableCell>
-                  <TableCell>{record.target}</TableCell>
-                  <TableCell>{record.wasteKg}</TableCell>
-                  <TableCell className={record.quantity >= record.target ? 'text-success' : 'text-destructive'}>
-                    {record.target > 0 ? ((record.quantity / record.target) * 100).toFixed(1) : 0}%
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <DataTable
+            data={production}
+            columns={productionColumns}
+            dataType="production"
+            onDataChange={loadData}
+          />
         </CardContent>
       </Card>
     </div>

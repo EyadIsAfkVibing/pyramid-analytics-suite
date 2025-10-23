@@ -1,5 +1,15 @@
 import Dexie, { Table } from 'dexie';
 
+// Import tracking
+export interface ImportBatch {
+  id?: number;
+  fileName: string;
+  dataType: string;
+  recordCount: number;
+  importedAt: string;
+  importedBy?: string;
+}
+
 // Data models
 export interface ProductionRecord {
   id?: number;
@@ -9,6 +19,7 @@ export interface ProductionRecord {
   target: number;
   wasteKg: number;
   orderId?: number | null;
+  importBatchId?: number;
 }
 
 export interface InventoryItem {
@@ -18,6 +29,7 @@ export interface InventoryItem {
   minStockKg: number;
   unit: string;
   lastUpdated: string;
+  importBatchId?: number;
 }
 
 export interface SaleRecord {
@@ -28,6 +40,7 @@ export interface SaleRecord {
   amount: number;
   revenue: number;
   delivered: boolean;
+  importBatchId?: number;
 }
 
 export interface WorkerRecord {
@@ -36,6 +49,7 @@ export interface WorkerRecord {
   shift: string;
   tasksDone: number;
   date: string;
+  importBatchId?: number;
 }
 
 // Database class
@@ -44,14 +58,16 @@ export class PyramidsFactoryDB extends Dexie {
   inventory!: Table<InventoryItem>;
   sales!: Table<SaleRecord>;
   workers!: Table<WorkerRecord>;
+  importBatches!: Table<ImportBatch>;
 
   constructor() {
     super('PyramidsFactoryDB');
-    this.version(1).stores({
-      production: '++id, date, productType',
-      inventory: '++id, itemName',
-      sales: '++id, date, customer',
-      workers: '++id, name, date, shift'
+    this.version(2).stores({
+      production: '++id, date, productType, importBatchId',
+      inventory: '++id, itemName, importBatchId',
+      sales: '++id, date, customer, importBatchId',
+      workers: '++id, name, date, shift, importBatchId',
+      importBatches: '++id, dataType, importedAt'
     });
   }
 }

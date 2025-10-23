@@ -4,9 +4,11 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileDown } from 'lucide-react';
-import { CSVUpload } from '@/components/upload/CSVUpload';
+import { FileUpload } from '@/components/upload/FileUpload';
+import { ImportHistory } from '@/components/data/ImportHistory';
+import { UserGuide } from '@/components/help/UserGuide';
+import { DataTable } from '@/components/data/DataTable';
 import { exportToPDF, captureChartImage } from '@/lib/pdfExport';
 import { toast } from 'sonner';
 
@@ -56,10 +58,12 @@ const Workers = () => {
 
   const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
-  const handleImport = async (data: Omit<WorkerRecord, 'id'>[]) => {
-    await db.workers.bulkAdd(data);
-    loadData();
-  };
+  const workerColumns = [
+    { key: 'date', label: 'Date', format: (val: string) => val.slice(0, 10) },
+    { key: 'name', label: 'Worker Name' },
+    { key: 'shift', label: 'Shift' },
+    { key: 'tasksDone', label: 'Tasks Completed' },
+  ];
 
   const handleExport = async () => {
     const chartImages = await Promise.all([
@@ -95,13 +99,20 @@ const Workers = () => {
           <p className="text-muted-foreground">Track worker productivity and shift efficiency</p>
         </div>
         <div className="flex gap-2">
-          <CSVUpload dataType="workers" onDataImport={handleImport} />
+          <UserGuide />
+          <FileUpload dataType="workers" onDataImport={loadData} />
           <Button onClick={handleExport} variant="outline" size="sm">
             <FileDown className="h-4 w-4 mr-2" />
             Export PDF
           </Button>
         </div>
       </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          <ImportHistory dataType="workers" onImportDeleted={loadData} />
+        </CardContent>
+      </Card>
 
       {/* Summary Cards */}
       <motion.div 
@@ -199,41 +210,17 @@ const Workers = () => {
         </Card>
       </div>
 
-      {/* Recent Worker Records */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Worker Performance</CardTitle>
+          <CardTitle>Worker Data Management</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Worker Name</TableHead>
-                <TableHead>Shift</TableHead>
-                <TableHead>Tasks Completed</TableHead>
-                <TableHead>Performance</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {workers.slice(0, 20).map((worker) => {
-                const avgTasks = typeof avgTasksPerWorker === 'string' ? parseFloat(avgTasksPerWorker) : avgTasksPerWorker;
-                const performance = worker.tasksDone >= avgTasks ? 'Above Average' : 'Below Average';
-                
-                return (
-                  <TableRow key={worker.id}>
-                    <TableCell>{worker.date}</TableCell>
-                    <TableCell className="font-medium">{worker.name}</TableCell>
-                    <TableCell className="capitalize">{worker.shift}</TableCell>
-                    <TableCell className="font-semibold">{worker.tasksDone}</TableCell>
-                    <TableCell className={worker.tasksDone >= avgTasks ? 'text-success' : 'text-muted-foreground'}>
-                      {performance}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <DataTable
+            data={workers}
+            columns={workerColumns}
+            dataType="workers"
+            onDataChange={loadData}
+          />
         </CardContent>
       </Card>
     </div>

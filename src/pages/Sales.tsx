@@ -4,10 +4,11 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { FileDown } from 'lucide-react';
-import { CSVUpload } from '@/components/upload/CSVUpload';
+import { FileUpload } from '@/components/upload/FileUpload';
+import { ImportHistory } from '@/components/data/ImportHistory';
+import { UserGuide } from '@/components/help/UserGuide';
+import { DataTable } from '@/components/data/DataTable';
 import { exportToPDF, captureChartImage } from '@/lib/pdfExport';
 import { toast } from 'sonner';
 
@@ -59,10 +60,14 @@ const Sales = () => {
 
   const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
-  const handleImport = async (data: Omit<SaleRecord, 'id'>[]) => {
-    await db.sales.bulkAdd(data);
-    loadData();
-  };
+  const salesColumns = [
+    { key: 'date', label: 'Date', format: (val: string) => val.slice(0, 10) },
+    { key: 'customer', label: 'Customer' },
+    { key: 'productType', label: 'Product' },
+    { key: 'amount', label: 'Quantity' },
+    { key: 'revenue', label: 'Revenue', format: (val: number) => `$${val.toLocaleString()}` },
+    { key: 'delivered', label: 'Delivered', format: (val: boolean) => val ? 'Yes' : 'No' },
+  ];
 
   const handleExport = async () => {
     const chartImages = await Promise.all([
@@ -102,12 +107,20 @@ const Sales = () => {
           <p className="text-muted-foreground">Track revenue, customers, and delivery performance</p>
         </div>
         <div className="flex gap-2">
-          <CSVUpload dataType="sales" onDataImport={handleImport} />
+          <UserGuide />
+          <FileUpload dataType="sales" onDataImport={loadData} />
           <Button onClick={handleExport} variant="outline" size="sm">
             <FileDown className="h-4 w-4 mr-2" />
             Export PDF
           </Button>
         </div>
+      </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          <ImportHistory dataType="sales" onImportDeleted={loadData} />
+        </CardContent>
+      </Card>
       </div>
 
       {/* Summary Cards */}
@@ -210,42 +223,17 @@ const Sales = () => {
         </Card>
       </div>
 
-      {/* Recent Sales Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Sales</CardTitle>
+          <CardTitle>Sales Data Management</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Revenue</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sales.slice(0, 15).map((sale) => (
-                <TableRow key={sale.id}>
-                  <TableCell>{sale.date}</TableCell>
-                  <TableCell className="font-medium">{sale.customer}</TableCell>
-                  <TableCell>{sale.productType}</TableCell>
-                  <TableCell>{sale.amount}</TableCell>
-                  <TableCell className="font-semibold">${sale.revenue.toLocaleString()}</TableCell>
-                  <TableCell>
-                    {sale.delivered ? (
-                      <Badge className="bg-success text-success-foreground">Delivered</Badge>
-                    ) : (
-                      <Badge variant="secondary">Pending</Badge>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <DataTable
+            data={sales}
+            columns={salesColumns}
+            dataType="sales"
+            onDataChange={loadData}
+          />
         </CardContent>
       </Card>
     </div>

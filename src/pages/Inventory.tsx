@@ -4,10 +4,11 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, FileDown } from 'lucide-react';
-import { CSVUpload } from '@/components/upload/CSVUpload';
+import { FileDown } from 'lucide-react';
+import { FileUpload } from '@/components/upload/FileUpload';
+import { ImportHistory } from '@/components/data/ImportHistory';
+import { UserGuide } from '@/components/help/UserGuide';
+import { DataTable } from '@/components/data/DataTable';
 import { exportToPDF, captureChartImage } from '@/lib/pdfExport';
 import { toast } from 'sonner';
 
@@ -32,10 +33,13 @@ const Inventory = () => {
   const lowStockCount = inventory.filter(i => i.stockKg < i.minStockKg).length;
   const totalValue = inventory.reduce((sum, i) => sum + i.stockKg, 0);
 
-  const handleImport = async (data: Omit<InventoryItem, 'id'>[]) => {
-    await db.inventory.bulkAdd(data);
-    loadData();
-  };
+  const inventoryColumns = [
+    { key: 'itemName', label: 'Item Name' },
+    { key: 'stockKg', label: 'Current Stock' },
+    { key: 'minStockKg', label: 'Min Stock' },
+    { key: 'unit', label: 'Unit' },
+    { key: 'lastUpdated', label: 'Last Updated', format: (val: string) => new Date(val).toLocaleDateString() },
+  ];
 
   const handleExport = async () => {
     const chartImages = await Promise.all([
@@ -70,13 +74,20 @@ const Inventory = () => {
           <p className="text-muted-foreground">Monitor stock levels and material availability</p>
         </div>
         <div className="flex gap-2">
-          <CSVUpload dataType="inventory" onDataImport={handleImport} />
+          <UserGuide />
+          <FileUpload dataType="inventory" onDataImport={loadData} />
           <Button onClick={handleExport} variant="outline" size="sm">
             <FileDown className="h-4 w-4 mr-2" />
             Export PDF
           </Button>
         </div>
       </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          <ImportHistory dataType="inventory" onImportDeleted={loadData} />
+        </CardContent>
+      </Card>
 
       {/* Summary Cards */}
       <motion.div 
@@ -149,56 +160,17 @@ const Inventory = () => {
         </CardContent>
       </Card>
 
-      {/* Inventory Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Inventory Details</CardTitle>
+          <CardTitle>Inventory Data Management</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Item Name</TableHead>
-                <TableHead>Current Stock</TableHead>
-                <TableHead>Minimum Stock</TableHead>
-                <TableHead>Unit</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last Updated</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {inventory.map((item) => {
-                const isLow = item.stockKg < item.minStockKg;
-                const percentage = (item.stockKg / item.minStockKg) * 100;
-                
-                return (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">
-                      {isLow && <AlertTriangle className="inline h-4 w-4 mr-2 text-destructive" />}
-                      {item.itemName}
-                    </TableCell>
-                    <TableCell className={isLow ? 'text-destructive font-semibold' : ''}>
-                      {item.stockKg}
-                    </TableCell>
-                    <TableCell>{item.minStockKg}</TableCell>
-                    <TableCell>{item.unit}</TableCell>
-                    <TableCell>
-                      {isLow ? (
-                        <Badge variant="destructive">Critical</Badge>
-                      ) : percentage < 150 ? (
-                        <Badge variant="secondary">Low</Badge>
-                      ) : (
-                        <Badge className="bg-success text-success-foreground">Healthy</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {new Date(item.lastUpdated).toLocaleDateString()}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <DataTable
+            data={inventory}
+            columns={inventoryColumns}
+            dataType="inventory"
+            onDataChange={loadData}
+          />
         </CardContent>
       </Card>
     </div>
